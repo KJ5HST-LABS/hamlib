@@ -50,7 +50,7 @@ jobs:
         working-directory: hamlib-src
         run: |
           ./configure \
-            --prefix="$PWD/install" \
+            --prefix="$PWD/dist" \
             --enable-shared=yes \
             --enable-static=no \
             --enable-silent-rules \
@@ -78,7 +78,7 @@ jobs:
       - name: Bundle
         run: |
           chmod +x scripts/bundle-macos.sh
-          scripts/bundle-macos.sh hamlib-src/install staging
+          scripts/bundle-macos.sh hamlib-src/dist staging
 
       - name: Verify
         run: |
