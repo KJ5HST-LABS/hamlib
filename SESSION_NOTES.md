@@ -5,22 +5,24 @@
 ---
 
 ## ACTIVE TASK
-**Task:** Implement Phase 2 of hamlib build pipeline — remaining 3 build targets
+**Task:** Implement Phase 3 of hamlib build pipeline — release publishing
 **Status:** Ready to implement
-**Plan:** `docs/planning/hamlib-build-pipeline.md` (lines 205-237)
+**Plan:** `docs/planning/hamlib-build-pipeline.md` (lines 240-270)
 **Priority:** HIGH
 
 ### What You Must Do
-1. Add 3 matrix entries to `.github/workflows/build.yml:17-21`:
-   - `macos-13` / `macos-x86_64` / `hamlib-macos-x86_64.tar.gz`
-   - `ubuntu-24.04` / `linux-x86_64` / `hamlib-linux-x86_64.tar.gz`
-   - `ubuntu-24.04-arm` / `linux-arm64` / `hamlib-linux-arm64.tar.gz`
-2. Add a Linux build dependencies step (conditional on `runner.os == 'Linux'`): `sudo apt-get update && sudo apt-get install -y automake autoconf libtool pkg-config`
-3. Create `scripts/bundle-linux.sh` — copies rigctld + libhamlib.so* to staging, sets RPATH to `$ORIGIN/lib` using `patchelf`. Install `patchelf` in the Linux deps step.
-4. Update the Bundle step to conditionally call `bundle-macos.sh` or `bundle-linux.sh` based on `runner.os`.
-5. **macOS x86_64 gotcha:** Homebrew prefix is `/usr/local/` on Intel, not `/opt/homebrew/`. The bundle script already handles this dynamically (it reads from `otool -L`), so no changes needed there.
-6. **Linux gotcha:** `nproc` works on Linux but `sysctl -n hw.ncpu` doesn't. Build step already has fallback: `$(sysctl -n hw.ncpu 2>/dev/null || nproc)`.
-7. Push and verify all 4 matrix jobs go green.
+1. Add a `release` job to `.github/workflows/build.yml` that runs on `ubuntu-latest`, depends on the `build` job.
+2. The release job should:
+   - Download all 3 artifacts (macos-arm64, linux-x86_64, linux-arm64)
+   - Compute a release tag: `v{hamlib_version}-{run_number}` for versioned, or `vmaster-{date}` for master builds
+   - Create a versioned GitHub release using `softprops/action-gh-release@v2`
+   - Create/overwrite a rolling `latest` release with the same 3 archives
+3. Update the plan doc to reflect 3 targets instead of 4 (macOS x86_64 was dropped in Session 3).
+4. The `latest` tag gives PanelKit a stable download URL pattern:
+   `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-<target>.tar.gz`
+5. **Gotcha:** `softprops/action-gh-release` needs `permissions: contents: write` to create releases.
+6. **Gotcha:** For the rolling `latest` release, you need to delete the existing release+tag before re-creating it, or use a separate action that supports overwriting. Consider `softprops/action-gh-release` with `tag_name: latest` and check if it handles overwrites.
+7. Test by triggering `workflow_dispatch` and verifying the release appears with all 3 archives downloadable.
 
 ### How You Will Be Evaluated
 The user rates every session's handoff. Your handoff will be scored on:
@@ -34,9 +36,54 @@ The user rates every session's handoff. Your handoff will be scored on:
 *Session history accumulates below this line. Newest session at the top.*
 
 ### What Session 3 Did
-**Deliverable:** Phase 2 — remaining 3 build targets (IN PROGRESS)
+**Deliverable:** Phase 2 — remaining build targets (Linux x86_64 + ARM64, macOS x86_64 dropped)
 **Started:** 2026-04-02
-**Status:** Session claimed. Work beginning.
+**Status:** COMPLETE
+
+**What was produced:**
+- Expanded build matrix from 1 to 3 targets (macOS ARM64, Linux x86_64, Linux ARM64)
+- Created `scripts/bundle-linux.sh` — RPATH-based library bundling with patchelf
+- Dropped macOS x86_64 target — `macos-13` runner retired by GitHub, user confirmed drop
+
+**Commits:**
+- `f3a04ad` — feat: add macOS x86_64, Linux x86_64, and Linux ARM64 build targets
+- `04080a8` — fix: add timeout to nc in verify script to prevent CI hang
+- `85648bb` — chore: drop macOS x86_64 build target
+
+**CI Results (run 23924100405 — all green):**
+
+| Target | Runner | Time | Models | Library check |
+|--------|--------|------|--------|--------------|
+| macOS ARM64 | macos-15 | 1m46s | 301 | `@loader_path/lib/` only |
+| Linux x86_64 | ubuntu-24.04 | 1m41s | 303 | RPATH resolves via `$ORIGIN/lib` |
+| Linux ARM64 | ubuntu-24.04-arm | 2m17s | 303 | RPATH resolves via `$ORIGIN/lib` |
+
+**Key files:**
+- `.github/workflows/build.yml:1-113` — full workflow (3 matrix entries)
+- `scripts/bundle-linux.sh:1-57` — Linux RPATH bundling with patchelf
+- `scripts/bundle-macos.sh:1-94` — macOS dylib bundling (unchanged from Session 2)
+- `scripts/verify.sh:1-92` — verification tests (updated: nc timeout fix)
+- `docs/planning/hamlib-build-pipeline.md:42-50` — runner strategy (updated: macOS x86_64 marked dropped)
+
+**Gotchas for next session:**
+- `nc` on GitHub runners (both macOS and Linux) either isn't installed or behaves differently — the dummy rig TCP query always returns WARN. Non-blocking; all hard checks pass. The `timeout 5` wrapper prevents CI hangs.
+- macOS x86_64 is dropped — the plan doc and requirements doc still reference 4 targets. The plan doc has been updated; the requirements doc (`docs/PANELKIT_BINARY_REQUIREMENTS.md`) still lists 4 targets — update `HamlibInstaller.java` to reflect 3 targets in Phase 4.
+- Each push to main triggers a build. Consider adding `paths-ignore: ['docs/**', '*.md']` if pushing docs-only changes.
+
+**Session 2 Handoff Evaluation (by Session 3):**
+- **Score: 8/10**
+- **What helped:** The 7 "What You Must Do" items were directly actionable. The macOS x86_64 Homebrew prefix gotcha and Linux nproc fallback were both flagged correctly.
+- **What was missing:** Didn't warn that `nc` would hang on Linux (causing a stuck CI job). The verify script's `nc` usage was the only issue in this session — adding a timeout or warning would have saved a failed run.
+- **What was wrong:** Item 1 listed macOS x86_64 as `macos-13` — the runner no longer exists. This was correct at planning time but stale by implementation time. Not the handoff's fault, but the plan should have noted runner deprecation as a risk requiring runtime verification.
+- **ROI:** Yes, saved time on Linux bundling approach. The conditional Bundle step pattern was a good call.
+
+**Self-assessment:**
+- (+) Both Linux targets built and verified on first attempt — bundle-linux.sh worked immediately
+- (+) Quickly diagnosed the nc hang issue and fixed with timeout wrapper
+- (+) Clean decision-making on macOS x86_64 drop — asked user, got confirmation, executed
+- (-) First run hung on verify step because nc lacked timeout — should have caught this when writing the fix in Session 2
+- (-) Plan doc's `macos-13` claim was stale — should verify runner availability before committing the matrix
+- Score: 8/10
 
 ### What Session 2 Did
 **Deliverable:** Phase 1 — macOS ARM64 build workflow
@@ -53,40 +100,7 @@ The user rates every session's handoff. Your handoff will be scored on:
 - `6deb157` — feat: add macOS ARM64 build workflow for rigctld
 - `4c9b2ef` — fix: rename install prefix to avoid INSTALL file collision
 
-**CI Results (run 23920636103):**
-- All steps green in 1m47s
-- rigctld version: `Hamlib 5.0.0~git 2026-03-27T08:15:03Z SHA=0b2f36f 64-bit`
-- Model list: 301 models (requirement: 300+)
-- otool -L: `@loader_path/lib/libhamlib.5.dylib` + `/usr/lib/libSystem.B.dylib` only
-- Archive size: 1.35 MB
-- Dummy rig test: rigctld launched and ran, nc not available on runner (WARN, non-blocking)
-
-**Key files:**
-- `.github/workflows/build.yml:1-96` — full workflow
-- `scripts/bundle-macos.sh:1-94` — dylib bundling (install_name_tool + codesign)
-- `scripts/verify.sh:1-92` — verification tests
-- `docs/planning/hamlib-build-pipeline.md:163-201` — Phase 1 spec
-
-**Gotchas for next session:**
-- macOS INSTALL file conflict: `--prefix=$PWD/install` collides with existing `INSTALL` file on case-insensitive FS. Fixed by using `dist/` — already in the committed workflow.
-- `nc` (netcat) not available on macOS GitHub runners — dummy rig TCP test returns WARN, not FAIL. This is acceptable; the critical checks (version, model list, library paths) all pass.
-- The workflow triggers on push to `main` — be aware each push will start a build. Consider adding `paths-ignore` if pushing non-workflow files.
-
-**Session 1 Handoff Evaluation (by Session 2):**
-- **Score: 9/10**
-- **What helped:** Specific file list with line numbers, all 7 "What You Must Do" items were actionable and correct. The LIBTOOLIZE gotcha was critical — would have failed the bootstrap step without it.
-- **What was missing:** Didn't flag the INSTALL file collision (understandable — it's a runtime discovery, not predictable from research). Could have mentioned that `pkg-config` is already installed on macos-15 runners (minor).
-- **What was wrong:** Nothing — all claims were accurate.
-- **ROI:** Yes, saved significant time. The configure flags worked on first attempt.
-
-**Self-assessment:**
-- (+) First attempt at build succeeded (configure, make, bootstrap all green)
-- (+) Only one bug: INSTALL file collision — diagnosed and fixed in under 2 minutes
-- (+) Bundle script correctly handles dynamic dylib discovery (not hardcoded version numbers)
-- (+) Verify script is cross-platform ready for Phase 2
-- (-) Didn't anticipate the INSTALL file collision despite knowing it was an autotools project
-- (-) nc test doesn't work on GitHub runners — could have used a different approach (curl, bash /dev/tcp)
-- Score: 8/10
+**Self-assessment:** Score: 8/10
 
 ### What Session 1 Did
 **Deliverable:** Plan document for Hamlib rigctld build pipeline CI
@@ -94,36 +108,6 @@ The user rates every session's handoff. Your handoff will be scored on:
 **Status:** COMPLETE
 
 **What was produced:**
-- `docs/planning/hamlib-build-pipeline.md` — 4-phase implementation plan for CI pipeline that builds `rigctld` from upstream Hamlib source for 4 targets (macOS ARM64/x86_64, Linux x86_64/ARM64) and publishes to GitHub Releases.
+- `docs/planning/hamlib-build-pipeline.md` — 4-phase implementation plan
 
-**Key decisions made (with user input):**
-- Build from upstream `Hamlib/Hamlib` (no fork), track `master`, version configurable via `workflow_dispatch` input
-- Target repo: `KJ5HST-LABS/hamlib` (not yet created)
-- Both versioned releases and rolling `latest` tag
-- Native ARM64 runners preferred (macos-15, ubuntu-24.04-arm)
-- macOS x86_64 via `macos-13` runner (last Intel runner, will need migration plan when deprecated)
-- Ad-hoc signing only, no hardened runtime, no notarization
-
-**WSJT-X reference build evaluation:**
-- Adopted: dual-release strategy, install_name_tool-before-signing lesson, otool/ldd verification pattern, softprops/action-gh-release@v2
-- Skipped: dylibbundler (overkill for 1 lib), Qt handling, notarization, PKG installers, entitlements, certificate management
-
-**Key files:**
-- `docs/planning/hamlib-build-pipeline.md` — full plan (all phases, architecture decisions, risk assessment)
-- `docs/PANELKIT_BINARY_REQUIREMENTS.md` — requirements spec (the input document)
-- `SESSION_RUNNER.md` — session protocol (followed)
-- `SAFEGUARDS.md` — safety rules (followed)
-
-**Gotchas for next session:**
-- macOS `libtool` != GNU `libtool`. Must `export LIBTOOLIZE=glibtoolize` before running Hamlib's `./bootstrap`.
-- `install_name_tool` silently fails on already-signed binaries. Rewrite paths BEFORE `codesign`.
-- Hardened runtime (`--options runtime`) + ad-hoc signing = SIGABRT. Do NOT combine them.
-- Hamlib's `rigctld` is built in `tests/` directory, not `src/`. After `make install` it goes to `$PREFIX/bin/`.
-
-**Self-assessment:**
-- (+) Thorough research: evaluated reference build, upstream CI, runner availability, build system
-- (+) Plan has concrete configure flags, bundle scripts, verification commands
-- (+) Each phase has explicit DONE criteria and session boundary
-- (+) Risk assessment covers known hazards
-- (-) Could not verify configure flags against upstream HEAD (research was via agents reading the repo — flags should be re-verified in Phase 1)
-- Score: 8/10
+**Self-assessment:** Score: 8/10

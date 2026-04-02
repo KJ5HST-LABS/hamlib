@@ -44,7 +44,7 @@ The `KJ5HST-LABS/WSJT-X-MAC-ARM64` pipeline is a 552-line workflow handling CMak
 | Target | Runner | Rationale |
 |--------|--------|-----------|
 | macOS ARM64 | `macos-15` | Native Apple Silicon, GA |
-| macOS x86_64 | `macos-13` | Last Intel macOS runner available |
+| ~~macOS x86_64~~ | ~~`macos-13`~~ | **DROPPED** — runner retired by GitHub; Apple ending x86 support |
 | Linux x86_64 | `ubuntu-24.04` | Standard GA runner |
 | Linux ARM64 | `ubuntu-24.04-arm` | Native ARM64, GA since early 2025 |
 
