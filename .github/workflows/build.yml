@@ -19,6 +19,15 @@ jobs:
           - os: macos-15
             target: macos-arm64
             archive: hamlib-macos-arm64.tar.gz
+          - os: macos-13
+            target: macos-x86_64
+            archive: hamlib-macos-x86_64.tar.gz
+          - os: ubuntu-24.04
+            target: linux-x86_64
+            archive: hamlib-linux-x86_64.tar.gz
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            archive: hamlib-linux-arm64.tar.gz
 
     runs-on: ${{ matrix.os }}
 
@@ -29,6 +38,10 @@ jobs:
       - name: Install build dependencies (macOS)
         if: runner.os == 'macOS'
         run: brew install automake autoconf libtool pkg-config
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y automake autoconf libtool pkg-config patchelf
 
       - name: Clone upstream Hamlib
         run: |
@@ -75,10 +88,17 @@ jobs:
         working-directory: hamlib-src
         run: make install
 
-      - name: Bundle
+      - name: Bundle (macOS)
+        if: runner.os == 'macOS'
         run: |
           chmod +x scripts/bundle-macos.sh
           scripts/bundle-macos.sh hamlib-src/dist staging
+
+      - name: Bundle (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          chmod +x scripts/bundle-linux.sh
+          scripts/bundle-linux.sh hamlib-src/dist staging
 
       - name: Verify
         run: |
