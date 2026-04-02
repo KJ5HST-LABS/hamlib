@@ -5,24 +5,22 @@
 ---
 
 ## ACTIVE TASK
-**Task:** Implement Phase 3 of hamlib build pipeline — release publishing
+**Task:** Implement Phase 4 of hamlib build pipeline — PanelKit integration
 **Status:** Ready to implement
-**Plan:** `docs/planning/hamlib-build-pipeline.md` (lines 240-270)
+**Plan:** `docs/planning/hamlib-build-pipeline.md` (lines 275-287)
 **Priority:** HIGH
 
 ### What You Must Do
-1. Add a `release` job to `.github/workflows/build.yml` that runs on `ubuntu-latest`, depends on the `build` job.
-2. The release job should:
-   - Download all 3 artifacts (macos-arm64, linux-x86_64, linux-arm64)
-   - Compute a release tag: `v{hamlib_version}-{run_number}` for versioned, or `vmaster-{date}` for master builds
-   - Create a versioned GitHub release using `softprops/action-gh-release@v2`
-   - Create/overwrite a rolling `latest` release with the same 3 archives
-3. Update the plan doc to reflect 3 targets instead of 4 (macOS x86_64 was dropped in Session 3).
-4. The `latest` tag gives PanelKit a stable download URL pattern:
-   `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-<target>.tar.gz`
-5. **Gotcha:** `softprops/action-gh-release` needs `permissions: contents: write` to create releases.
-6. **Gotcha:** For the rolling `latest` release, you need to delete the existing release+tag before re-creating it, or use a separate action that supports overwriting. Consider `softprops/action-gh-release` with `tag_name: latest` and check if it handles overwrites.
-7. Test by triggering `workflow_dispatch` and verifying the release appears with all 3 archives downloadable.
+1. Find `HamlibInstaller.java` in the panelkit-api repo (sibling directory: `/Users/terrell/Documents/code/panelkit/` or similar — check with `ls /Users/terrell/Documents/code/panelkit*/`).
+2. The file is at `plugins/hamlib-radio/backend/.../HamlibInstaller.java` — grep for `MAC_ARM64_URL` or `hamlib` to find the exact path.
+3. Update the 4 URL constants. There are now only 3 targets (macOS x86_64 was dropped):
+   - `MAC_ARM64_URL` = `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-macos-arm64.tar.gz`
+   - `LINUX_X86_64_URL` = `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-x86_64.tar.gz`
+   - `LINUX_ARM64_URL` = `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-arm64.tar.gz`
+   - `MAC_X86_64_URL` — either remove or set to the ARM64 URL with a comment that x86_64 is no longer built (PanelKit may still need this constant to compile)
+4. Test by running PanelKit's hamlib installer against the new URLs — the download, extraction, and `rigctld --version` should succeed.
+5. **Gotcha:** The release URLs are confirmed working. The `latest` tag is stable and will be overwritten on each build.
+6. **Gotcha:** PanelKit's `HamlibInstaller.java` may have Windows URL handling too — don't modify the Windows URL, it downloads from the official Hamlib repo.
 
 ### How You Will Be Evaluated
 The user rates every session's handoff. Your handoff will be scored on:
@@ -36,83 +34,76 @@ The user rates every session's handoff. Your handoff will be scored on:
 *Session history accumulates below this line. Newest session at the top.*
 
 ### What Session 4 Did
-**Deliverable:** Phase 3 — release publishing (IN PROGRESS)
-**Started:** 2026-04-02
-**Status:** Session claimed. Work beginning.
-
-### What Session 3 Did
-**Deliverable:** Phase 2 — remaining build targets (Linux x86_64 + ARM64, macOS x86_64 dropped)
+**Deliverable:** Phase 3 — release publishing
 **Started:** 2026-04-02
 **Status:** COMPLETE
 
 **What was produced:**
-- Expanded build matrix from 1 to 3 targets (macOS ARM64, Linux x86_64, Linux ARM64)
-- Created `scripts/bundle-linux.sh` — RPATH-based library bundling with patchelf
-- Dropped macOS x86_64 target — `macos-13` runner retired by GitHub, user confirmed drop
+- Added `release` job to `.github/workflows/build.yml:122-196`
+- Both versioned and rolling `latest` releases created successfully
+- Added `paths-ignore` to skip builds on docs/md-only pushes
+- Added `permissions: contents: write` for release creation
 
 **Commits:**
-- `f3a04ad` — feat: add macOS x86_64, Linux x86_64, and Linux ARM64 build targets
-- `04080a8` — fix: add timeout to nc in verify script to prevent CI hang
-- `85648bb` — chore: drop macOS x86_64 build target
+- `b786d7e` — feat: add release publishing job with versioned + latest tags
 
-**CI Results (run 23924100405 — all green):**
+**CI Results (run 23924417456 — all green):**
 
-| Target | Runner | Time | Models | Library check |
-|--------|--------|------|--------|--------------|
-| macOS ARM64 | macos-15 | 1m46s | 301 | `@loader_path/lib/` only |
-| Linux x86_64 | ubuntu-24.04 | 1m41s | 303 | RPATH resolves via `$ORIGIN/lib` |
-| Linux ARM64 | ubuntu-24.04-arm | 2m17s | 303 | RPATH resolves via `$ORIGIN/lib` |
+| Job | Time | Status |
+|-----|------|--------|
+| build (macos-arm64) | 1m30s | PASS |
+| build (linux-x86_64) | 1m32s | PASS |
+| build (linux-arm64) | 1m53s | PASS |
+| release | 13s | PASS |
+
+**Releases created:**
+- `vmaster-20260402-8` — versioned release with 3 archives
+- `latest` — rolling release with stable download URLs
+
+**Verified download URLs:**
+- `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-macos-arm64.tar.gz`
+- `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-x86_64.tar.gz`
+- `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-arm64.tar.gz`
 
 **Key files:**
-- `.github/workflows/build.yml:1-113` — full workflow (3 matrix entries)
-- `scripts/bundle-linux.sh:1-57` — Linux RPATH bundling with patchelf
-- `scripts/bundle-macos.sh:1-94` — macOS dylib bundling (unchanged from Session 2)
-- `scripts/verify.sh:1-92` — verification tests (updated: nc timeout fix)
-- `docs/planning/hamlib-build-pipeline.md:42-50` — runner strategy (updated: macOS x86_64 marked dropped)
+- `.github/workflows/build.yml:122-196` — release job
+- `.github/workflows/build.yml:3-4` — permissions block
+- `.github/workflows/build.yml:9-13` — paths-ignore for docs/md
 
 **Gotchas for next session:**
-- `nc` on GitHub runners (both macOS and Linux) either isn't installed or behaves differently — the dummy rig TCP query always returns WARN. Non-blocking; all hard checks pass. The `timeout 5` wrapper prevents CI hangs.
-- macOS x86_64 is dropped — the plan doc and requirements doc still reference 4 targets. The plan doc has been updated; the requirements doc (`docs/PANELKIT_BINARY_REQUIREMENTS.md`) still lists 4 targets — update `HamlibInstaller.java` to reflect 3 targets in Phase 4.
-- Each push to main triggers a build. Consider adding `paths-ignore: ['docs/**', '*.md']` if pushing docs-only changes.
+- The `latest` release is deleted and recreated on each build (via `gh release delete latest` + `softprops/action-gh-release`). This ensures clean asset replacement.
+- `paths-ignore` covers `docs/**`, `*.md`, `SESSION_NOTES.md`, `BACKLOG.md`. Workflow file changes still trigger builds.
+- The release body includes curl-ready URLs for PanelKit's `HamlibInstaller.java`.
 
-**Session 2 Handoff Evaluation (by Session 3):**
-- **Score: 8/10**
-- **What helped:** The 7 "What You Must Do" items were directly actionable. The macOS x86_64 Homebrew prefix gotcha and Linux nproc fallback were both flagged correctly.
-- **What was missing:** Didn't warn that `nc` would hang on Linux (causing a stuck CI job). The verify script's `nc` usage was the only issue in this session — adding a timeout or warning would have saved a failed run.
-- **What was wrong:** Item 1 listed macOS x86_64 as `macos-13` — the runner no longer exists. This was correct at planning time but stale by implementation time. Not the handoff's fault, but the plan should have noted runner deprecation as a risk requiring runtime verification.
-- **ROI:** Yes, saved time on Linux bundling approach. The conditional Bundle step pattern was a good call.
+**Session 3 Handoff Evaluation (by Session 4):**
+- **Score: 9/10**
+- **What helped:** Both gotchas (#5 permissions, #6 overwrite strategy) were critical and saved debugging time. The 7-item checklist was fully actionable.
+- **What was missing:** Could have mentioned that `paths-ignore` should also cover `SESSION_NOTES.md` and `BACKLOG.md` specifically (they match `*.md` but being explicit helps readability).
+- **What was wrong:** Nothing — all claims accurate.
+- **ROI:** Yes, the entire implementation was one commit with zero failures.
 
 **Self-assessment:**
-- (+) Both Linux targets built and verified on first attempt — bundle-linux.sh worked immediately
-- (+) Quickly diagnosed the nc hang issue and fixed with timeout wrapper
-- (+) Clean decision-making on macOS x86_64 drop — asked user, got confirmation, executed
-- (-) First run hung on verify step because nc lacked timeout — should have caught this when writing the fix in Session 2
-- (-) Plan doc's `macos-13` claim was stale — should verify runner availability before committing the matrix
-- Score: 8/10
+- (+) Zero-failure implementation — release job worked on first push
+- (+) Clean delete-then-create pattern for `latest` release avoids stale asset issues
+- (+) Added `paths-ignore` proactively (flagged as a gotcha by Session 3)
+- (+) Release body includes ready-to-use download URLs for PanelKit integration
+- (-) Minor: `paths-ignore` lists both `*.md` and `SESSION_NOTES.md`/`BACKLOG.md` — the latter are redundant since `*.md` already covers them
+- Score: 9/10
+
+### What Session 3 Did
+**Deliverable:** Phase 2 — remaining build targets
+**Started:** 2026-04-02
+**Status:** COMPLETE
+**Self-assessment:** Score: 8/10
 
 ### What Session 2 Did
 **Deliverable:** Phase 1 — macOS ARM64 build workflow
 **Started:** 2026-04-02
 **Status:** COMPLETE
-
-**What was produced:**
-- `.github/workflows/build.yml` — GitHub Actions workflow with macOS ARM64 (macos-15) matrix entry
-- `scripts/bundle-macos.sh` — dylib path rewriting + ad-hoc signing
-- `scripts/verify.sh` — post-build verification (version, model list, dummy rig, library path check)
-- GitHub repo `KJ5HST-LABS/hamlib` created and pushed
-
-**Commits:**
-- `6deb157` — feat: add macOS ARM64 build workflow for rigctld
-- `4c9b2ef` — fix: rename install prefix to avoid INSTALL file collision
-
 **Self-assessment:** Score: 8/10
 
 ### What Session 1 Did
 **Deliverable:** Plan document for Hamlib rigctld build pipeline CI
 **Started:** 2026-04-02
 **Status:** COMPLETE
-
-**What was produced:**
-- `docs/planning/hamlib-build-pipeline.md` — 4-phase implementation plan
-
 **Self-assessment:** Score: 8/10
