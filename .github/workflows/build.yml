@@ -1,8 +1,16 @@
 name: Build Hamlib rigctld
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'SESSION_NOTES.md'
+      - 'BACKLOG.md'
   workflow_dispatch:
     inputs:
       hamlib_version:
@@ -110,3 +118,79 @@ jobs:
         with:
           name: ${{ matrix.target }}
           path: ${{ matrix.archive }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect archives
+        run: |
+          mkdir -p release-assets
+          find artifacts -name '*.tar.gz' -exec cp {} release-assets/ \;
+          echo "Archives to publish:"
+          ls -la release-assets/
+
+      - name: Compute release tag
+        id: tag
+        run: |
+          HAMLIB_REF="${{ github.event.inputs.hamlib_version || 'master' }}"
+          DATE=$(date +%Y%m%d)
+          RUN=${{ github.run_number }}
+
+          if [ "$HAMLIB_REF" = "master" ]; then
+            VERSION_TAG="vmaster-${DATE}-${RUN}"
+          else
+            VERSION_TAG="v${HAMLIB_REF}-${RUN}"
+          fi
+
+          echo "version_tag=$VERSION_TAG" >> "$GITHUB_OUTPUT"
+          echo "hamlib_ref=$HAMLIB_REF" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $VERSION_TAG"
+
+      - name: Create versioned release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.version_tag }}
+          name: "Hamlib rigctld ${{ steps.tag.outputs.version_tag }}"
+          body: |
+            Pre-built `rigctld` binaries from upstream Hamlib (`${{ steps.tag.outputs.hamlib_ref }}`).
+
+            **Targets:**
+            - `hamlib-macos-arm64.tar.gz` — macOS Apple Silicon
+            - `hamlib-linux-x86_64.tar.gz` — Linux x86_64
+            - `hamlib-linux-arm64.tar.gz` — Linux ARM64
+
+            Each archive extracts flat: `rigctld` + `lib/libhamlib.*`
+
+            Built by GitHub Actions run #${{ github.run_number }}.
+          files: release-assets/*
+          prerelease: ${{ contains(steps.tag.outputs.hamlib_ref, 'rc') }}
+
+      - name: Delete existing latest release
+        run: gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Hamlib rigctld (latest)"
+          body: |
+            **Latest** pre-built `rigctld` binaries from upstream Hamlib (`${{ steps.tag.outputs.hamlib_ref }}`).
+
+            This release is automatically updated on each build. For a stable URL, use:
+            ```
+            https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-macos-arm64.tar.gz
+            https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-x86_64.tar.gz
+            https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-arm64.tar.gz
+            ```
+
+            Built from version tag `${{ steps.tag.outputs.version_tag }}`, run #${{ github.run_number }}.
+          files: release-assets/*
+          make_latest: true

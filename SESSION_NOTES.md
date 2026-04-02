@@ -35,6 +35,11 @@ The user rates every session's handoff. Your handoff will be scored on:
 
 *Session history accumulates below this line. Newest session at the top.*
 
+### What Session 4 Did
+**Deliverable:** Phase 3 — release publishing (IN PROGRESS)
+**Started:** 2026-04-02
+**Status:** Session claimed. Work beginning.
+
 ### What Session 3 Did
 **Deliverable:** Phase 2 — remaining build targets (Linux x86_64 + ARM64, macOS x86_64 dropped)
 **Started:** 2026-04-02
