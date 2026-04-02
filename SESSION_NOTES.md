@@ -30,6 +30,11 @@ The user rates every session's handoff. Your handoff will be scored on:
 
 *Session history accumulates below this line. Newest session at the top.*
 
+### What Session 2 Did
+**Deliverable:** Phase 1 — macOS ARM64 build workflow (IN PROGRESS)
+**Started:** 2026-04-02
+**Status:** Session claimed. Work beginning.
+
 ### What Session 1 Did
 **Deliverable:** Plan document for Hamlib rigctld build pipeline CI
 **Started:** 2026-04-02

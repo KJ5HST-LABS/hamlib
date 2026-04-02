@@ -1,0 +1,95 @@
+name: Build Hamlib rigctld
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      hamlib_version:
+        description: 'Hamlib git ref (tag, branch, or SHA)'
+        default: 'master'
+        required: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: macos-arm64
+            archive: hamlib-macos-arm64.tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install automake autoconf libtool pkg-config
+
+      - name: Clone upstream Hamlib
+        run: |
+          HAMLIB_REF="${{ github.event.inputs.hamlib_version || 'master' }}"
+          echo "Building Hamlib ref: $HAMLIB_REF"
+          git clone --depth 1 --branch "$HAMLIB_REF" https://github.com/Hamlib/Hamlib.git hamlib-src || \
+            (git clone https://github.com/Hamlib/Hamlib.git hamlib-src && cd hamlib-src && git checkout "$HAMLIB_REF")
+
+      - name: Bootstrap
+        working-directory: hamlib-src
+        run: |
+          # macOS ships Apple's libtool, not GNU libtool
+          if [ "$(uname)" = "Darwin" ]; then
+            export LIBTOOLIZE=glibtoolize
+          fi
+          ./bootstrap
+
+      - name: Configure (minimal build)
+        working-directory: hamlib-src
+        run: |
+          ./configure \
+            --prefix="$PWD/install" \
+            --enable-shared=yes \
+            --enable-static=no \
+            --enable-silent-rules \
+            --enable-html-matrix=no \
+            --enable-usrp=no \
+            --enable-winradio=no \
+            --with-cxx-binding=no \
+            --with-indi=no \
+            --with-libusb=no \
+            --with-lua-binding=no \
+            --with-perl-binding=no \
+            --with-python-binding=no \
+            --with-readline=no \
+            --with-tcl-binding=no \
+            --with-xml-support=no
+
+      - name: Build
+        working-directory: hamlib-src
+        run: make -j$(sysctl -n hw.ncpu 2>/dev/null || nproc)
+
+      - name: Install
+        working-directory: hamlib-src
+        run: make install
+
+      - name: Bundle
+        run: |
+          chmod +x scripts/bundle-macos.sh
+          scripts/bundle-macos.sh hamlib-src/install staging
+
+      - name: Verify
+        run: |
+          chmod +x scripts/verify.sh
+          scripts/verify.sh staging
+
+      - name: Package archive
+        run: tar czf ${{ matrix.archive }} -C staging rigctld lib
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ matrix.archive }}
