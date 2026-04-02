@@ -5,22 +5,19 @@
 ---
 
 ## ACTIVE TASK
-**Task:** Implement Phase 4 of hamlib build pipeline — PanelKit integration
-**Status:** Ready to implement
-**Plan:** `docs/planning/hamlib-build-pipeline.md` (lines 275-287)
-**Priority:** HIGH
+**Task:** Build pipeline complete. No active task.
+**Status:** All phases done. Phase 4 deferred — consumer code doesn't exist yet.
+**Plan:** `docs/planning/hamlib-build-pipeline.md`
+**Priority:** N/A
 
 ### What You Must Do
-1. Find `HamlibInstaller.java` in the panelkit-api repo (sibling directory: `/Users/terrell/Documents/code/panelkit/` or similar — check with `ls /Users/terrell/Documents/code/panelkit*/`).
-2. The file is at `plugins/hamlib-radio/backend/.../HamlibInstaller.java` — grep for `MAC_ARM64_URL` or `hamlib` to find the exact path.
-3. Update the 4 URL constants. There are now only 3 targets (macOS x86_64 was dropped):
-   - `MAC_ARM64_URL` = `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-macos-arm64.tar.gz`
-   - `LINUX_X86_64_URL` = `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-x86_64.tar.gz`
-   - `LINUX_ARM64_URL` = `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-arm64.tar.gz`
-   - `MAC_X86_64_URL` — either remove or set to the ARM64 URL with a comment that x86_64 is no longer built (PanelKit may still need this constant to compile)
-4. Test by running PanelKit's hamlib installer against the new URLs — the download, extraction, and `rigctld --version` should succeed.
-5. **Gotcha:** The release URLs are confirmed working. The `latest` tag is stable and will be overwritten on each build.
-6. **Gotcha:** PanelKit's `HamlibInstaller.java` may have Windows URL handling too — don't modify the Windows URL, it downloads from the official Hamlib repo.
+When the PanelKit hamlib-radio plugin is implemented, use these URLs in `HamlibInstaller.java`:
+```
+https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-macos-arm64.tar.gz
+https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-x86_64.tar.gz
+https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-arm64.tar.gz
+```
+Windows uses official Hamlib releases directly — not built by this pipeline.
 
 ### How You Will Be Evaluated
 The user rates every session's handoff. Your handoff will be scored on:
@@ -33,62 +30,41 @@ The user rates every session's handoff. Your handoff will be scored on:
 
 *Session history accumulates below this line. Newest session at the top.*
 
+### What Session 5 Did
+**Deliverable:** Phase 4 — PanelKit integration
+**Started:** 2026-04-02
+**Status:** DEFERRED — consumer code does not exist yet
+
+**What was found:**
+- Searched all panelkit repos: `panelkit/`, `panelkit-api/`, `panelkit-server/`, `panelkit-ui/`
+- `HamlibInstaller.java` does not exist in any repo
+- `plugins/hamlib-radio/` directory does not exist — only referenced in planning docs (`panelkit-server/docs/planning/panelkit-v1-rc-plan.md:329`)
+- The requirements doc (`docs/PANELKIT_BINARY_REQUIREMENTS.md`) describes the future consumer, but the code hasn't been written yet
+- **No deliverable produced.** Phase 4 is deferred until the hamlib-radio plugin is implemented.
+
+**The hamlib build pipeline is complete:**
+- 3 targets build and verify green (macOS ARM64, Linux x86_64, Linux ARM64)
+- Releases auto-publish to GitHub (versioned + rolling `latest`)
+- Download URLs are stable and ready for consumption
+
+**Session 4 Handoff Evaluation (by Session 5):**
+- **Score: 6/10**
+- **What helped:** The URL constants and gotchas (#5, #6) were useful reference for when the plugin is built.
+- **What was missing:** Did not verify that `HamlibInstaller.java` actually exists before writing the handoff. A quick grep would have revealed the file doesn't exist, saving this entire session.
+- **What was wrong:** Item 1 says "Find HamlibInstaller.java in the panelkit-api repo" — the file doesn't exist in any panelkit repo. The handoff assumed the consumer code was already written.
+- **ROI:** No — the session was wasted discovering the target doesn't exist. A 30-second grep in Session 4 would have caught this.
+
+**Self-assessment:**
+- (+) Correctly identified the blocker instead of creating a stub file or fabricating work
+- (+) Did not produce false deliverables — "No deliverable produced" per protocol
+- (-) The plan's Phase 4 assumed consumer code existed without verifying — this is a planning gap from Session 1
+- Score: 5/10 (no deliverable, but correct behavior given the situation)
+
 ### What Session 4 Did
 **Deliverable:** Phase 3 — release publishing
 **Started:** 2026-04-02
 **Status:** COMPLETE
-
-**What was produced:**
-- Added `release` job to `.github/workflows/build.yml:122-196`
-- Both versioned and rolling `latest` releases created successfully
-- Added `paths-ignore` to skip builds on docs/md-only pushes
-- Added `permissions: contents: write` for release creation
-
-**Commits:**
-- `b786d7e` — feat: add release publishing job with versioned + latest tags
-
-**CI Results (run 23924417456 — all green):**
-
-| Job | Time | Status |
-|-----|------|--------|
-| build (macos-arm64) | 1m30s | PASS |
-| build (linux-x86_64) | 1m32s | PASS |
-| build (linux-arm64) | 1m53s | PASS |
-| release | 13s | PASS |
-
-**Releases created:**
-- `vmaster-20260402-8` — versioned release with 3 archives
-- `latest` — rolling release with stable download URLs
-
-**Verified download URLs:**
-- `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-macos-arm64.tar.gz`
-- `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-x86_64.tar.gz`
-- `https://github.com/KJ5HST-LABS/hamlib/releases/download/latest/hamlib-linux-arm64.tar.gz`
-
-**Key files:**
-- `.github/workflows/build.yml:122-196` — release job
-- `.github/workflows/build.yml:3-4` — permissions block
-- `.github/workflows/build.yml:9-13` — paths-ignore for docs/md
-
-**Gotchas for next session:**
-- The `latest` release is deleted and recreated on each build (via `gh release delete latest` + `softprops/action-gh-release`). This ensures clean asset replacement.
-- `paths-ignore` covers `docs/**`, `*.md`, `SESSION_NOTES.md`, `BACKLOG.md`. Workflow file changes still trigger builds.
-- The release body includes curl-ready URLs for PanelKit's `HamlibInstaller.java`.
-
-**Session 3 Handoff Evaluation (by Session 4):**
-- **Score: 9/10**
-- **What helped:** Both gotchas (#5 permissions, #6 overwrite strategy) were critical and saved debugging time. The 7-item checklist was fully actionable.
-- **What was missing:** Could have mentioned that `paths-ignore` should also cover `SESSION_NOTES.md` and `BACKLOG.md` specifically (they match `*.md` but being explicit helps readability).
-- **What was wrong:** Nothing — all claims accurate.
-- **ROI:** Yes, the entire implementation was one commit with zero failures.
-
-**Self-assessment:**
-- (+) Zero-failure implementation — release job worked on first push
-- (+) Clean delete-then-create pattern for `latest` release avoids stale asset issues
-- (+) Added `paths-ignore` proactively (flagged as a gotcha by Session 3)
-- (+) Release body includes ready-to-use download URLs for PanelKit integration
-- (-) Minor: `paths-ignore` lists both `*.md` and `SESSION_NOTES.md`/`BACKLOG.md` — the latter are redundant since `*.md` already covers them
-- Score: 9/10
+**Self-assessment:** Score: 9/10
 
 ### What Session 3 Did
 **Deliverable:** Phase 2 — remaining build targets
