@@ -46,14 +46,15 @@ if ! kill -0 $RIGCTLD_PID 2>/dev/null; then
     echo "FAIL: rigctld exited unexpectedly"
     exit 1
 fi
+echo "PASS: rigctld dummy rig started (PID $RIGCTLD_PID)"
 
-# Query the dummy rig
-RESPONSE=$(echo "+\quit" | nc localhost $PORT 2>/dev/null || echo "")
+# Query the dummy rig (timeout to avoid hanging in CI)
+RESPONSE=$(timeout 5 bash -c "echo '+\quit' | nc -w 2 localhost $PORT" 2>/dev/null || echo "")
 kill $RIGCTLD_PID 2>/dev/null || true
 wait $RIGCTLD_PID 2>/dev/null || true
 
 if [ -z "$RESPONSE" ]; then
-    echo "WARN: Could not connect to rigctld on port $PORT (nc may not be available)"
+    echo "WARN: Could not query rigctld on port $PORT (nc may not be available or timed out)"
 else
     echo "PASS: Dummy rig responded: $(echo "$RESPONSE" | head -1)"
 fi
